@@ -8,8 +8,9 @@ Required:
 * `pip3 install selenium`
 * [adb](https://developer.android.com/studio/command-line/adb)
 * [gecko driver](https://github.com/mozilla/geckodriver)  
+* [Firmware Extraction tool](https://github.com/tyxeron/Oneplus5FirmwareExtractor)
 
-Note: geckodriver and adb must be in the PATH environment variable.
+Note: geckodriver, adb and extraction tool must be in the PATH environment variable.
 
 Run `python3 downloader.py`. Make sure that you have internet connection and only **one** device connected via adb (run `adb devices` to confirm)
 # TODO
