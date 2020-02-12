@@ -34,26 +34,34 @@ def reboot(flag=0):
 
 
 def push_firmware(firmware_name):
-    if not check_device_available():
-        return
-    if subprocess.check_call(
-            ['adb', 'push', firmware_name, '/storage/']) == 0:
-        return True
+    if click.confirm('Wait for your device to boot into recoveryand enter the passcode on the phone to unlock. The confirm here by entering "y"', default=False):
+        if not check_device_available():
+            return
+        if subprocess.check_call(
+                ['adb', 'push', firmware_name, '/storage/']) == 0:
+            return True
+        else:
+            return False
     else:
         return False
 
 
 def check_device_available():
-    output = subprocess.check_output(["adb", "devices"])
-    output = output.decode("utf-8")
-    print(output)
-    while not click.confirm('Is your device listed?', default=False):
-        if click.confirm('Abort? If not make sure the phone is powered on and reconnect it. Then and enter "N"',
-                         default=False):
-            return False
-    else:
-        print("Do not disconnect your device. ADB command imminent")
-        return True
+    while True:
+
+        output = subprocess.check_output(["adb", "devices"])
+        output = output.decode("utf-8")
+        print(output)
+
+        if click.confirm('Is your device listed?', default=False):
+            break
+        else:
+            if not click.confirm('Do you want to search again? Else Aborting.',
+                             default=False):
+                return False
+
+    print("Do not disconnect your device. ADB command imminent")
+    return True
 
 
 def run_extractor(filename):
@@ -134,7 +142,9 @@ def wait_download(file_path, link_name):
         pbar = ProgressBar(widgets=[Percentage(), Bar()], maxval=total_size).start()
         while os.path.exists(part_file_name):
             time.sleep(1)
-            pbar.update(get_size_on_disk(part_file_name))
+            size_on_disk = get_size_on_disk(part_file_name)
+            if size_on_disk != -1:
+                pbar.update(size_on_disk)
         pbar.finish()
         print("Download done!")
         return
@@ -177,7 +187,7 @@ def main():
         file_name = re.sub('https://oxygenos.oneplus.net/', '', link_name)
         file_location = os.getcwd() + '/' + file_name
         version = banner.find_elements_by_class_name("info")[1].find_element_by_tag_name("p")
-
+        
         # Ask if update should be downloaded
         if not is_downloaded(file_location, link_name):
             if click.confirm('Version ' + version.text + ' can be downloaded, do you want to continue?', default=False):
@@ -212,8 +222,8 @@ def main():
             exit(-1)
 
         if click.confirm('Do you want to flash the newest version now?', default=False):
-            if flash_new_firmware(firmware_name=file_name):
-                print("You can now install the new firmware in TWRP. After that reboot to System and your done.")
+            if flash_new_firmware(firmware_name="firmware-" + file_name):
+                print("You can now install the new firmware in TWRP. Go to 'Install', click on 'firmware-" + file_name + "' and swipe to confirm. After that reboot to System and your done.")
             else:
                 print("Could not push firmware to phone. Aborting")
                 exit(-1)
