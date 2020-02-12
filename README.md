@@ -19,3 +19,6 @@ Run `python3 downloader.py`. Make sure that you have internet connection and onl
 * Enable ADB sideload instead of push and manual install
 * Add option to stop backup
 * Resume download
+
+# Disclaimer
+Provided as is. No guarantee for correctness or liability for damage.
