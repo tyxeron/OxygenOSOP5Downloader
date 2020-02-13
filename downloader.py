@@ -3,6 +3,7 @@ import re
 import subprocess
 import time
 import requests
+import sys
 from datetime import datetime
 
 
@@ -17,26 +18,29 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 
 
-def reboot(flag=0):
-    # flag determines reboot variant:
-    # 0: Recovery
-    # 1: Bootloader
-    # 2: System
+def reboot(mode):
+    reboot_modes = ['recovery', 'system']
+    if mode not in reboot_modes:
+        sys.exit("Wrong mode for function reboot. Only 'recovery' and 'system' allowed")
     if not check_device_available():
-        return
-    reboot_modes = ['recovery', 'bootloader', 'system']
-    reboot_mode = reboot_modes[flag]
+        return False
     if subprocess.check_call(
-            ['adb', 'reboot', reboot_mode]) == 0:
+            ['adb', 'reboot', mode]) == 0:
+        # Wait for device to boot into right mode
+        print("Waiting for device to boot into mode",mode)
+        while check_device_available(False) != mode:
+            time.sleep(1)
+        print("Waiting for device to boot into mode", mode, "done.")
         return True
     else:
         return False
 
 
 def push_firmware(firmware_name):
-    if click.confirm('Wait for your device to boot into recoveryand enter the passcode on the phone to unlock. The confirm here by entering "y"', default=False):
-        if not check_device_available():
-            return
+    if check_device_available() != "recovery":
+        while not reboot("recovery"):
+            pass
+    if click.confirm('Enter the passcode on the phone to unlock. The confirm here by entering "y"', default=False):
         if subprocess.check_call(
                 ['adb', 'push', firmware_name, '/storage/']) == 0:
             return True
@@ -45,23 +49,29 @@ def push_firmware(firmware_name):
     else:
         return False
 
-
-def check_device_available():
+def check_device_available(prompt=True):
+    patterns = [("recovery", "recovery"), ("device", "system")]
     while True:
-
         output = subprocess.check_output(["adb", "devices"])
-        output = output.decode("utf-8")
-        print(output)
+        output = output.decode('utf-8')
+        matches = re.findall(".+?\n", output)  # extract second line of output
+        if len(matches) == 1:  # No devices
+            if prompt:
+                if not click.confirm('Device not found, do you want to search again? Else Aborting.',
+                                     default=False):
+                    sys.exit('Closing program')
+                else:
+                    continue
+            else:
+                return None
 
-        if click.confirm('Is your device listed?', default=False):
-            break
-        else:
-            if not click.confirm('Do you want to search again? Else Aborting.',
-                             default=False):
-                return False
-
-    print("Do not disconnect your device. ADB command imminent")
-    return True
+        first_device = matches[1]
+        for pattern, mode in patterns:
+            is_available_in_mode = re.match(".*{0}.*\n".format(pattern), first_device)
+            if not is_available_in_mode:
+                continue
+            else:
+                return mode
 
 
 def run_extractor(filename):
@@ -100,15 +110,15 @@ def is_downloaded(file_path, link_name):
                 os.remove(file_path_part)
                 os.remove(file_path)
             else:
-                print('Closing program')
-                exit(0)
+                sys.exit('Closing program')
     return False
 
 
 def backup_phone():
     #TODO add save point for extracted firmware
-    if not check_device_available():
-        return None
+    if check_device_available() != "system":
+        while not reboot("system"):
+            pass
     backup_name = "OnePlus5_" + datetime.today().strftime('%d-%m-%Y-%H:%M:%S') + ".backup"
     command = ['adb', 'backup', '-apk', '-obb', '-shared', '-all', '-system', '-f',
                backup_name]
@@ -123,10 +133,7 @@ def wait_backup(backup_process):
 
 
 def flash_new_firmware(firmware_name):
-    if reboot():
-        return push_firmware(firmware_name)
-
-    return False
+    return push_firmware(firmware_name)
 
 
 def wait_download(file_path, link_name):
@@ -187,7 +194,7 @@ def main():
         file_name = re.sub('https://oxygenos.oneplus.net/', '', link_name)
         file_location = os.getcwd() + '/' + file_name
         version = banner.find_elements_by_class_name("info")[1].find_element_by_tag_name("p")
-        
+
         # Ask if update should be downloaded
         if not is_downloaded(file_location, link_name):
             if click.confirm('Version ' + version.text + ' can be downloaded, do you want to continue?', default=False):
@@ -196,8 +203,8 @@ def main():
             print("Already downloaded the newest version")
 
         # Possibly backup phone via adb
-        if click.confirm('Do you want to backup your phone? (Note: does only backup apps and settings)',
-                         default=False):
+        if click.confirm('Do you want to backup your phone? This will take awhile. (Note: does only backup apps and '
+                         'settings)', default=False):
             backup_process = backup_phone()
 
         # Wait for download finished
@@ -218,15 +225,13 @@ def main():
         if run_extractor(file_name):
             print("Running Firmware Extraction tool done.")
         else:
-            print("Firmware Extraction tool error. Aborting")
-            exit(-1)
+            sys.exit("Firmware Extraction tool error")
 
         if click.confirm('Do you want to flash the newest version now?', default=False):
             if flash_new_firmware(firmware_name="firmware-" + file_name):
                 print("You can now install the new firmware in TWRP. Go to 'Install', click on 'firmware-" + file_name + "' and swipe to confirm. After that reboot to System and your done.")
             else:
-                print("Could not push firmware to phone. Aborting")
-                exit(-1)
+                sys.exit("Could not push firmware to phone.")
 
     except TimeoutException:
         print("Loading took too much time! Check your internet connection")
