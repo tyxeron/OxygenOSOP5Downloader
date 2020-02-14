@@ -81,9 +81,9 @@ def check_device_available(prompt=True):
 def run_extractor(filename):
     if os.path.exists("firmware-{}".format(filename)):
         print("Found already extracted firmware. Checking for integrity")
-        #TODO check for integrity
-        if click.confirm("Skipping integrity check for now. Do you want to continue with a possibly corrupt firmware?"):
-            return
+        if check_zip_file("firmware-{}".format(filename)):
+            return True  # File exists and is healthy
+
     if subprocess.check_call(
             ['generate-flashable-firmware-zip.sh', filename]) == 0:
         os.remove(filename)
@@ -112,7 +112,7 @@ def get_total_size(link, retry_time=3):
 def is_downloaded(file_path, link_name):
     file_path_part = file_path + ".part"
     if os.path.exists(file_path) or os.path.exists(file_path_part):
-        if get_size_on_disk(file_path) == get_total_size(link_name) and check_zip_file("{}.zip".format(file_path)):
+        if get_size_on_disk(file_path) == get_total_size(link_name) and check_zip_file(file_path):
             return True
         else:
             if click.confirm('File is incomplete: Do you want to remove and download it again?', default=False):
