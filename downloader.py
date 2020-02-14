@@ -5,17 +5,20 @@ import time
 import requests
 import sys
 from datetime import datetime
-
+import zipfile
 
 import click
 from progressbar import Bar, Percentage, ProgressBar
-
 from selenium import webdriver
 from selenium.common.exceptions import TimeoutException
 from selenium.webdriver.common.by import By
 from selenium.webdriver.firefox.options import Options
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
+
+
+def check_zip_file(filename):
+    return zipfile.ZipFile(filename).testzip() is None
 
 
 def reboot(mode):
@@ -49,6 +52,7 @@ def push_firmware(firmware_name):
     else:
         return False
 
+
 def check_device_available(prompt=True):
     patterns = [("recovery", "recovery"), ("device", "system")]
     while True:
@@ -75,6 +79,11 @@ def check_device_available(prompt=True):
 
 
 def run_extractor(filename):
+    if os.path.exists("firmware-{}".format(filename)):
+        print("Found already extracted firmware. Checking for integrity")
+        #TODO check for integrity
+        if click.confirm("Skipping integrity check for now. Do you want to continue with a possibly corrupt firmware?"):
+            return
     if subprocess.check_call(
             ['generate-flashable-firmware-zip.sh', filename]) == 0:
         os.remove(filename)
@@ -103,7 +112,7 @@ def get_total_size(link, retry_time=3):
 def is_downloaded(file_path, link_name):
     file_path_part = file_path + ".part"
     if os.path.exists(file_path) or os.path.exists(file_path_part):
-        if get_size_on_disk(file_path) == get_total_size(link_name):
+        if get_size_on_disk(file_path) == get_total_size(link_name) and check_zip_file("{}.zip".format(file_path)):
             return True
         else:
             if click.confirm('File is incomplete: Do you want to remove and download it again?', default=False):
@@ -115,7 +124,6 @@ def is_downloaded(file_path, link_name):
 
 
 def backup_phone():
-    #TODO add save point for extracted firmware
     if check_device_available() != "system":
         while not reboot("system"):
             pass
