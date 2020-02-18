@@ -40,10 +40,13 @@ def reboot(mode):
 
 
 def push_firmware(firmware_name):
+    device_mode = check_device_available()
+    if device_mode is None:
+        return None
     if check_device_available() != "recovery":
         while not reboot("recovery"):
             pass
-    if click.confirm('Enter the passcode on the phone to unlock. The confirm here by entering "y"', default=False):
+    if click.confirm('Enter the passcode on the phone to unlock. Then confirm by entering "y"', default=False):
         if subprocess.check_call(
                 ['adb', 'push', firmware_name, '/storage/']) == 0:
             return True
@@ -61,9 +64,9 @@ def check_device_available(prompt=True):
         matches = re.findall(".+?\n", output)  # extract second line of output
         if len(matches) == 1:  # No devices
             if prompt:
-                if not click.confirm('Device not found, do you want to search again? Else Aborting.',
+                if not click.confirm('Device not found, connect your phone and try again',
                                      default=False):
-                    sys.exit('Closing program')
+                    return None
                 else:
                     continue
             else:
@@ -78,11 +81,19 @@ def check_device_available(prompt=True):
                 return mode
 
 
-def run_extractor(filename):
-    if os.path.exists("firmware-{}".format(filename)):
+def check_for_firmware(filename):
+    firmware_name = "firmware-{}".format(filename)
+    if os.path.exists(firmware_name):
         print("Found already extracted firmware. Checking for integrity")
-        if check_zip_file("firmware-{}".format(filename)):
+        if check_zip_file(firmware_name):
             return True  # File exists and is healthy
+
+    return False
+
+
+def run_extractor(filename):
+    if check_for_firmware(filename):
+        return True
 
     if subprocess.check_call(
             ['generate-flashable-firmware-zip.sh', filename]) == 0:
@@ -116,15 +127,20 @@ def is_downloaded(file_path, link_name):
             return True
         else:
             if click.confirm('File is incomplete: Do you want to remove and download it again?', default=False):
-                os.remove(file_path_part)
-                os.remove(file_path)
+                if os.path.exists(file_path_part):
+                    os.remove(file_path_part)
+                if os.path.exists(file_path):
+                    os.remove(file_path)
             else:
                 sys.exit('Closing program')
     return False
 
 
 def backup_phone():
-    if check_device_available() != "system":
+    device_mode = check_device_available()
+    if device_mode is None:
+        return None
+    elif device_mode != "system":
         while not reboot("system"):
             pass
     backup_name = "OnePlus5_" + datetime.today().strftime('%d-%m-%Y-%H:%M:%S') + ".backup"
@@ -154,13 +170,13 @@ def wait_download(file_path, link_name):
         time.sleep(1)
     if os.path.isfile(file_path):
         print("Download started!")
-        pbar = ProgressBar(widgets=[Percentage(), Bar()], maxval=total_size).start()
+        progress_bar = ProgressBar(widgets=[Percentage(), Bar()], maxval=total_size).start()
         while os.path.exists(part_file_name):
             time.sleep(1)
             size_on_disk = get_size_on_disk(part_file_name)
             if size_on_disk != -1:
-                pbar.update(size_on_disk)
-        pbar.finish()
+                progress_bar.update(size_on_disk)
+        progress_bar.finish()
         print("Download done!")
         return
     else:
@@ -190,6 +206,9 @@ def main():
     # Background process to perform backup if needed
     backup_process = None
 
+    # Flag
+    firmware_extracted = False
+
     # Firefox selenium webdriver
     driver = webdriver.Firefox(options=options, firefox_profile=profile)
     driver.get(url)
@@ -203,20 +222,30 @@ def main():
         file_location = os.getcwd() + '/' + file_name
         version = banner.find_elements_by_class_name("info")[1].find_element_by_tag_name("p")
 
-        # Ask if update should be downloaded
-        if not is_downloaded(file_location, link_name):
-            if click.confirm('Version ' + version.text + ' can be downloaded, do you want to continue?', default=False):
-                download_button.click()
+        # Check if firmware already extracted
+        if check_for_firmware(file_name):
+            print("Found newest firmware already extracted. Skipping download")
+            firmware_extracted = True
         else:
-            print("Already downloaded the newest version")
+            # Ask if update should be downloaded
+            if not is_downloaded(file_location, link_name):
+                if click.confirm('Version ' + version.text + ' can be downloaded, do you want to continue?', default=False):
+                    download_button.click()
+                else:
+                    sys.exit("Nothing to download.")
+            else:
+                print("Already downloaded the newest version")
 
         # Possibly backup phone via adb
         if click.confirm('Do you want to backup your phone? This will take awhile. (Note: does only backup apps and '
                          'settings)', default=False):
             backup_process = backup_phone()
+            if backup_process is None:
+                print("Backup aborted")
 
         # Wait for download finished
-        wait_download(file_location, link_name)
+        if not firmware_extracted:
+            wait_download(file_location, link_name)
 
         # If doing backup wait for it to finish
         if backup_process is not None:
@@ -229,11 +258,14 @@ def main():
             else:
                 print("Backup successful")
 
-        print("Running Firmware Extraction tool")
-        if run_extractor(file_name):
-            print("Running Firmware Extraction tool done.")
+        if firmware_extracted:
+            print("Skipping Firmware Extraction tool since already done.")
         else:
-            sys.exit("Firmware Extraction tool error")
+            print("Running Firmware Extraction tool")
+            if run_extractor(file_name):
+                print("Running Firmware Extraction tool done.")
+            else:
+                sys.exit("Firmware Extraction tool error")
 
         if click.confirm('Do you want to flash the newest version now?', default=False):
             if flash_new_firmware(firmware_name="firmware-" + file_name):
@@ -241,8 +273,9 @@ def main():
             else:
                 sys.exit("Could not push firmware to phone.")
 
+        print("Closing Program")
     except TimeoutException:
-        print("Loading took too much time! Check your internet connection")
+        print("Loading took too much time! Check your internet connection and try again")
 
     driver.close()
 

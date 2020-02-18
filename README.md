@@ -14,11 +14,11 @@ Note: geckodriver, adb and extraction tool must be in the PATH environment varia
 
 Run `python3 downloader.py`. Make sure that you have internet connection and only **one** device connected via adb (run `adb devices` to confirm)
 # TODO
-* Add save point for extracted firmware
-* Add more sanity checks
-* Enable ADB sideload instead of push and manual install
-* Add option to stop backup
-* Resume download
+* [X] Add save point for extracted firmware
+* [X] Add more sanity checks
+* [ ] Enable ADB sideload instead of push and manual install
+* [ ] Add option to stop backup
+* [ ] Resume download
 
 # Disclaimer
 Provided as is. No guarantee for correctness or liability for damage.
