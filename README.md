@@ -1,4 +1,4 @@
-# OxygenOSOP5Downloader
+# OxygenOS OP5 Downloader
 A work in progress downloader/installer for Oxygen OS for the **Oneplus 5** (Possibly more in the future). This will download the newest Oxygen OS image from https://www.oneplus.com/, extract the firmware and push it to your Oneplus 5 for you to install.
 Linux only.
 # Usage
