@@ -30,7 +30,7 @@ def reboot(mode):
     if subprocess.check_call(
             ['adb', 'reboot', mode]) == 0:
         # Wait for device to boot into right mode
-        print("Waiting for device to boot into mode",mode)
+        print("Waiting for device to boot into mode", mode)
         while check_device_available(False) != mode:
             time.sleep(1)
         print("Waiting for device to boot into mode", mode, "done.")
@@ -44,14 +44,13 @@ def push_firmware(firmware_name):
     if device_mode is None:
         return None
     if check_device_available() != "recovery":
+        print('Once it rebooted, please provide the passcode to proceed')
         while not reboot("recovery"):
             pass
-    if click.confirm('Enter the passcode on the phone to unlock. Then confirm by entering "y"', default=False):
-        if subprocess.check_call(
-                ['adb', 'push', firmware_name, '/storage/']) == 0:
-            return True
-        else:
-            return False
+
+    if subprocess.check_call(
+            ['adb', 'push', firmware_name, '/sdcard/']) == 0:
+        return True
     else:
         return False
 
@@ -84,8 +83,9 @@ def check_device_available(prompt=True):
 def check_for_firmware(filename):
     firmware_name = "firmware-{}".format(filename)
     if os.path.exists(firmware_name):
-        print("Found already extracted firmware. Checking for integrity")
+        print("Found already extracted firmware. Checking for integrity ...")
         if check_zip_file(firmware_name):
+            print("Integrity check successful. Skipping download")
             return True  # File exists and is healthy
 
     return False
@@ -224,7 +224,6 @@ def main():
 
         # Check if firmware already extracted
         if check_for_firmware(file_name):
-            print("Found newest firmware already extracted. Skipping download")
             firmware_extracted = True
         else:
             # Ask if update should be downloaded
