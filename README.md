@@ -3,14 +3,13 @@ A work in progress downloader/installer for Oxygen OS for the **Oneplus 5** (Pos
 Linux only.
 # Usage
 Required:
-* `pip3 install click`
-* `pip3 install progressbar`
-* `pip3 install selenium`
 * [adb](https://developer.android.com/studio/command-line/adb)
 * [gecko driver](https://github.com/mozilla/geckodriver)  
 * [Firmware Extraction tool](https://github.com/tyxeron/Oneplus5FirmwareExtractor)
 
 Note: geckodriver, adb and extraction tool must be in the PATH environment variable.
+
+To install dependencies, run `pip3 install -r requirements.txt`
 
 Run `python3 downloader.py`. Make sure that you have internet connection and only **one** device connected via adb (run `adb devices` to confirm)
 # TODO
